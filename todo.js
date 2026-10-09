@@ -1,7 +1,7 @@
 // ====== CẤU HÌNH ======
 // Thay bằng URL backend sau khi deploy lên Render (không có dấu / ở cuối).
 // Khi chạy thử trên máy, dùng: "http://localhost:3000"
-const API_URL = "https://ten-service.onrender.com";
+const API_URL = "https://simple-deploy-de2c.onrender.com/";
 
 // ====== ĐẾM NGƯỢC ======
 const targetInput = document.getElementById("targetInput");
