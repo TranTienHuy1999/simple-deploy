@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>To-do list & Đếm ngược</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .back { display: inline-block; margin-bottom: 12px; color: #2563eb; }
+    h1, h2 { color: #1f2937; }
+    .countdown {
+      background: #eff6ff;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    #countdownDisplay { font-size: 1.6em; font-weight: bold; color: #1d4ed8; margin: 10px 0; }
+    .row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    input[type="text"], input[type="datetime-local"] {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 1em;
+    }
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      background: #2563eb;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.95em;
+    }
+    button:hover { background: #1d4ed8; }
+    button.danger { background: #dc2626; }
+    button.danger:hover { background: #b91c1c; }
+    ul { list-style: none; padding: 0; }
+    li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    li span { flex: 1; }
+    li.done span { text-decoration: line-through; color: #9ca3af; }
+    .status { color: #6b7280; font-size: 0.9em; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a class="back" href="index.html">← Quay lại trang chủ</a>
+
+    <section class="countdown">
+      <h2>Đếm ngược</h2>
+      <div class="row">
+        <input type="datetime-local" id="targetInput">
+        <button id="setTargetBtn">Thiết lập</button>
+      </div>
+      <div id="countdownDisplay">Chưa thiết lập</div>
+    </section>
+
+    <section>
+      <h2>Việc cần làm</h2>
+      <div class="row">
+        <input type="text" id="todoInput" placeholder="Nhập công việc mới...">
+        <button id="addBtn">Thêm</button>
+      </div>
+      <p class="status" id="status">Đang tải...</p>
+      <ul id="todoList"></ul>
+    </section>
+  </div>
+
+  <script src="todo.js"></script>
+</body>
+</html>
