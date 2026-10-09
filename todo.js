@@ -2,8 +2,13 @@
 // Thay bằng URL backend sau khi deploy lên Render (không có dấu / ở cuối).
 // Khi chạy thử trên máy, dùng: "http://localhost:3000"
 
-const API_URL = "https://simple-deploy-de2c.onrender.com";
 // const API_URL = "http://localhost:3000";
+
+const API_URL = "https://simple-deploy-de2c.onrender.com";
+
+// Chỉ phát thông báo nếu thời điểm hẹn vừa mới trôi qua trong khoảng này.
+// Nếu mở trang muộn hơn (ví dụ sau vài giờ) thì không báo dồn một loạt.
+const REMINDER_GRACE_MS = 5 * 60 * 1000;
 
 // ====== HÀM HỖ TRỢ ======
 function formatRemaining(ms) {
@@ -43,24 +48,82 @@ async function api(path, options = {}) {
   return res.json();
 }
 
-// ====== ĐẾM NGƯỢC (giữ nguyên) ======
+// ====== ĐẾM NGƯỢC (lưu lên MongoDB, có bản dự phòng trong localStorage) ======
 const targetInput = document.getElementById("targetInput");
 const setTargetBtn = document.getElementById("setTargetBtn");
 const countdownDisplay = document.getElementById("countdownDisplay");
+const countdownNote = document.getElementById("countdownNote");
 
-let targetTime = localStorage.getItem("targetTime");
-if (targetTime) {
-  targetInput.value = targetTime;
+let targetTime = null; // chuỗi ISO (UTC)
+
+// Đọc bản dự phòng trong trình duyệt (cũng đọc được dữ liệu cũ dạng giờ địa phương)
+function readLocalTarget() {
+  try {
+    const saved = localStorage.getItem("targetTime");
+    if (!saved) return null;
+    const d = new Date(saved);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  } catch (e) {
+    return null;
+  }
 }
 
-setTargetBtn.addEventListener("click", () => {
+function writeLocalTarget(iso) {
+  try {
+    localStorage.setItem("targetTime", iso);
+  } catch (e) {}
+}
+
+function showTargetInInput() {
+  targetInput.value = targetTime ? toLocalInput(targetTime) : "";
+}
+
+async function saveTargetToServer(iso) {
+  await api("/api/countdown", {
+    method: "PUT",
+    body: JSON.stringify({ target: iso }),
+  });
+}
+
+async function loadTarget() {
+  // 1) Hiện ngay bản trong trình duyệt để không phải chờ máy chủ
+  targetTime = readLocalTarget();
+  showTargetInInput();
+  updateCountdown();
+
+  // 2) Lấy bản trên MongoDB, bản này được ưu tiên
+  try {
+    const data = await api("/api/countdown");
+    if (data.target) {
+      targetTime = data.target;
+      writeLocalTarget(targetTime);
+      countdownNote.textContent = "Đã đồng bộ với máy chủ.";
+    } else if (targetTime) {
+      // Máy chủ chưa có dữ liệu mà trình duyệt đã có (dữ liệu từ phiên bản cũ): đẩy lên
+      await saveTargetToServer(targetTime);
+      countdownNote.textContent = "Đã đồng bộ với máy chủ.";
+    }
+    showTargetInInput();
+    updateCountdown();
+  } catch (err) {
+    countdownNote.textContent = "Chưa kết nối được máy chủ, đang dùng dữ liệu trên trình duyệt.";
+  }
+}
+
+setTargetBtn.addEventListener("click", async () => {
   if (!targetInput.value) {
     alert("Vui lòng chọn thời điểm.");
     return;
   }
-  targetTime = targetInput.value;
-  localStorage.setItem("targetTime", targetTime);
+  targetTime = new Date(targetInput.value).toISOString();
+  writeLocalTarget(targetTime);
   updateCountdown();
+  try {
+    await saveTargetToServer(targetTime);
+    countdownNote.textContent = "Đã lưu lên máy chủ.";
+  } catch (err) {
+    countdownNote.textContent = "Chưa lưu được lên máy chủ: " + err.message;
+  }
 });
 
 function updateCountdown() {
@@ -78,6 +141,151 @@ function updateCountdown() {
     return;
   }
   countdownDisplay.textContent = formatRemaining(diff);
+}
+
+// ====== NHẮC GIỜ: ÂM BÁO + THÔNG BÁO TRÌNH DUYỆT + KHUNG NHẮC TRÊN TRANG ======
+const notifyBtn = document.getElementById("notifyBtn");
+const notifyState = document.getElementById("notifyState");
+const reminderBox = document.getElementById("reminderBox");
+
+// Danh sách công việc đang hoạt động, dùng để kiểm tra giờ hẹn
+// (tách riêng để vẫn nhắc đúng khi bạn đang xem tab Thùng rác)
+let reminderList = [];
+
+// Ghi nhớ các nhắc nhở đã báo, tránh báo lại khi tải lại trang
+const NOTIFIED_KEY = "notifiedTasks";
+function readNotified() {
+  try {
+    return JSON.parse(localStorage.getItem(NOTIFIED_KEY)) || [];
+  } catch (e) {
+    return [];
+  }
+}
+function writeNotified(list) {
+  try {
+    localStorage.setItem(NOTIFIED_KEY, JSON.stringify(list.slice(-200)));
+  } catch (e) {}
+}
+let notifiedList = readNotified();
+
+// ----- Âm báo (tạo bằng Web Audio, không cần file âm thanh) -----
+let audioCtx = null;
+function unlockAudio() {
+  // Trình duyệt chỉ cho phát âm thanh sau khi người dùng đã bấm/nhấn phím trên trang
+  try {
+    if (!audioCtx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) audioCtx = new Ctx();
+    }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  } catch (e) {}
+}
+document.addEventListener("click", unlockAudio);
+document.addEventListener("keydown", unlockAudio);
+
+function playBeep() {
+  if (!audioCtx) return;
+  try {
+    for (let i = 0; i < 3; i++) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 880;
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      const start = audioCtx.currentTime + i * 0.4;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.3, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.3);
+      osc.start(start);
+      osc.stop(start + 0.32);
+    }
+  } catch (e) {}
+}
+
+// ----- Thông báo trình duyệt -----
+function updateNotifyState() {
+  if (!("Notification" in window)) {
+    notifyState.textContent = "Trình duyệt không hỗ trợ thông báo, vẫn có âm báo và khung nhắc trên trang.";
+    notifyBtn.textContent = "Thử âm báo";
+    return;
+  }
+  const permission = Notification.permission;
+  if (permission === "granted") {
+    notifyState.textContent = "Thông báo: đã bật.";
+    notifyBtn.textContent = "Thử âm báo";
+  } else if (permission === "denied") {
+    notifyState.textContent = "Thông báo: đã bị chặn. Hãy bật lại trong cài đặt trang web của trình duyệt.";
+    notifyBtn.textContent = "Thử âm báo";
+  } else {
+    notifyState.textContent = "Thông báo: chưa bật.";
+  }
+}
+
+notifyBtn.addEventListener("click", async () => {
+  unlockAudio();
+  playBeep(); // phát thử để bạn biết âm báo có hoạt động không
+  if ("Notification" in window && Notification.permission === "default") {
+    try {
+      await Notification.requestPermission();
+    } catch (e) {}
+  }
+  updateNotifyState();
+});
+
+// ----- Khung nhắc ngay trên trang -----
+function showReminderBanner(todo) {
+  const item = document.createElement("div");
+  item.className = "reminder-item";
+
+  const text = document.createElement("span");
+  text.textContent = "⏰ Đến giờ: " + todo.text;
+
+  const doneBtn = makeButton("Hoàn thành", "green small", async () => {
+    item.remove();
+    await toggleDone(todo._id, true);
+  });
+  const closeBtn = makeButton("Đóng", "gray small", () => item.remove());
+
+  item.append(text, doneBtn, closeBtn);
+  reminderBox.appendChild(item);
+}
+
+function fireReminder(todo) {
+  playBeep();
+  showReminderBanner(todo);
+  if ("Notification" in window && Notification.permission === "granted") {
+    try {
+      new Notification("⏰ Đến giờ công việc", { body: todo.text });
+    } catch (e) {
+      // Một số trình duyệt di động không cho tạo Notification trực tiếp, đã có khung nhắc dự phòng
+    }
+  }
+}
+
+// Chạy mỗi giây: tìm công việc đã đến giờ mà chưa được báo
+function checkReminders() {
+  const now = Date.now();
+  let changed = false;
+  reminderList.forEach((todo) => {
+    if (todo.done || !todo.dueAt) return;
+    const late = now - new Date(todo.dueAt).getTime();
+    if (late < 0) return; // chưa đến giờ
+    // Khóa gồm cả giờ hẹn: sửa giờ hẹn thì nhắc nhở được "nạp lại"
+    const key = `${todo._id}|${todo.dueAt}`;
+    if (notifiedList.includes(key)) return;
+    notifiedList.push(key);
+    changed = true;
+    if (late <= REMINDER_GRACE_MS) fireReminder(todo);
+  });
+  if (changed) writeNotified(notifiedList);
+}
+
+// Tải lại danh sách công việc đang hoạt động trong nền (không vẽ lại giao diện)
+async function refreshReminderList() {
+  try {
+    reminderList = await api("/api/todos?trash=false");
+  } catch (e) {}
 }
 
 // ====== TO-DO LIST ======
@@ -107,6 +315,7 @@ async function loadTodos() {
   try {
     const inTrash = currentView === "trash";
     cachedTodos = await api(`/api/todos?trash=${inTrash}`);
+    if (!inTrash) reminderList = cachedTodos;
     renderTodos();
     if (cachedTodos.length === 0) {
       setStatus(inTrash ? "Thùng rác trống." : "Chưa có công việc nào.");
@@ -275,6 +484,7 @@ async function toggleDone(id, done) {
   try {
     await api(`/api/todos/${id}`, { method: "PATCH", body: JSON.stringify({ done }) });
     await loadTodos();
+    if (currentView === "trash") await refreshReminderList();
   } catch (err) {
     setStatus("Cập nhật thất bại: " + err.message, true);
   }
@@ -295,6 +505,7 @@ async function restoreTodo(id) {
   try {
     await api(`/api/todos/${id}/restore`, { method: "PATCH" });
     await loadTodos();
+    await refreshReminderList(); // công việc vừa khôi phục cần được theo dõi giờ hẹn
   } catch (err) {
     setStatus("Khôi phục thất bại: " + err.message, true);
   }
@@ -344,9 +555,16 @@ tabTrash.addEventListener("click", () => switchView("trash"));
 emptyTrashBtn.addEventListener("click", emptyTrash);
 
 // ====== KHỞI ĐỘNG ======
-updateCountdown();
+updateNotifyState();
+loadTarget();
+loadTodos();
+
+// Mỗi giây: cập nhật đồng hồ và kiểm tra giờ hẹn
 setInterval(() => {
   updateCountdown();
   updateTaskTimers();
+  checkReminders();
 }, 1000);
-loadTodos();
+
+// Mỗi 60 giây: tải lại danh sách trong nền (nhận công việc thêm/sửa từ thiết bị khác)
+setInterval(refreshReminderList, 60000);

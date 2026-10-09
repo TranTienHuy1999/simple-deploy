@@ -24,6 +24,13 @@ const todoSchema = new mongoose.Schema(
 );
 const Todo = mongoose.model("Todo", todoSchema);
 
+// Lưu các thiết lập dạng key-value (hiện dùng cho thời điểm đếm ngược)
+const settingSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true },
+  value: { type: String, default: null },
+});
+const Setting = mongoose.model("Setting", settingSchema);
+
 // ====== HÀM HỖ TRỢ ======
 // Bắt lỗi của hàm async để không làm sập server
 const wrap = (fn) => (req, res, next) =>
@@ -158,6 +165,34 @@ app.delete(
         .json({ error: "Chỉ xóa vĩnh viễn được công việc đang nằm trong thùng rác" });
     }
     res.json({ ok: true });
+  })
+);
+
+// ĐẾM NGƯỢC: đọc thời điểm đã thiết lập
+app.get(
+  "/api/countdown",
+  wrap(async (req, res) => {
+    const setting = await Setting.findOne({ key: "countdown" });
+    res.json({ target: setting ? setting.value : null });
+  })
+);
+
+// ĐẾM NGƯỢC: lưu thời điểm (gửi target = null để xóa)
+app.put(
+  "/api/countdown",
+  wrap(async (req, res) => {
+    let value = null;
+    if (req.body.target !== null && req.body.target !== undefined) {
+      const d = parseDate(req.body.target);
+      if (!d) return res.status(400).json({ error: "Thời điểm không hợp lệ" });
+      value = d.toISOString();
+    }
+    await Setting.findOneAndUpdate(
+      { key: "countdown" },
+      { value },
+      { upsert: true, new: true }
+    );
+    res.json({ target: value });
   })
 );
 

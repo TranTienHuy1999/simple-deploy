@@ -83,6 +83,23 @@
     .actions { display: flex; gap: 6px; flex-wrap: wrap; }
     .status { color: #6b7280; font-size: 0.9em; margin: 8px 0; }
     .status.error { color: #dc2626; }
+
+    .note { font-size: 0.8em; color: #6b7280; min-height: 1em; }
+    .notify-row { align-items: center; }
+    #reminderBox { margin-bottom: 12px; }
+    .reminder-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #fee2e2;
+      border: 1px solid #fca5a5;
+      color: #991b1b;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+    .reminder-item span { flex: 1; word-break: break-word; }
   </style>
 </head>
 <body>
@@ -97,11 +114,18 @@
         <button id="setTargetBtn">Thiết lập</button>
       </div>
       <div id="countdownDisplay">Chưa thiết lập</div>
+      <div class="note" id="countdownNote"></div>
     </section>
 
     <!-- PHẦN CÔNG VIỆC -->
     <section>
       <h2>Việc cần làm</h2>
+
+      <div class="row notify-row">
+        <button id="notifyBtn" class="gray small">Bật thông báo &amp; thử âm báo</button>
+        <span class="note" id="notifyState"></span>
+      </div>
+      <div id="reminderBox"></div>
 
       <div class="form-box" id="formBox">
         <strong id="formTitle">Thêm công việc mới</strong>
