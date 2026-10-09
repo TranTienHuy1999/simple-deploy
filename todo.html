@@ -12,7 +12,7 @@
       padding: 20px;
     }
     .container {
-      max-width: 600px;
+      max-width: 650px;
       margin: 0 auto;
       background: #fff;
       padding: 24px;
@@ -32,11 +32,13 @@
     .row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
     input[type="text"], input[type="datetime-local"] {
       flex: 1;
+      min-width: 160px;
       padding: 10px;
       border: 1px solid #d1d5db;
       border-radius: 6px;
       font-size: 1em;
     }
+    label.field { display: block; font-size: 0.85em; color: #6b7280; margin-bottom: 4px; }
     button {
       padding: 10px 16px;
       border: none;
@@ -47,9 +49,23 @@
       font-size: 0.95em;
     }
     button:hover { background: #1d4ed8; }
+    button.small { padding: 6px 10px; font-size: 0.85em; }
     button.danger { background: #dc2626; }
     button.danger:hover { background: #b91c1c; }
-    ul { list-style: none; padding: 0; }
+    button.gray { background: #6b7280; }
+    button.gray:hover { background: #4b5563; }
+    button.green { background: #16a34a; }
+    button.green:hover { background: #15803d; }
+
+    .form-box { background: #f9fafb; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+    .form-box.editing { background: #fef9c3; }
+
+    .tabs { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+    .tabs button { background: #e5e7eb; color: #374151; }
+    .tabs button.active { background: #2563eb; color: #fff; }
+    .tabs .spacer { flex: 1; }
+
+    ul { list-style: none; padding: 0; margin: 0; }
     li {
       display: flex;
       align-items: center;
@@ -57,15 +73,23 @@
       padding: 10px;
       border-bottom: 1px solid #e5e7eb;
     }
-    li span { flex: 1; }
-    li.done span { text-decoration: line-through; color: #9ca3af; }
-    .status { color: #6b7280; font-size: 0.9em; margin-top: 8px; }
+    .info { flex: 1; min-width: 0; }
+    .title { font-weight: bold; color: #111827; word-break: break-word; }
+    .meta { font-size: 0.85em; color: #6b7280; margin-top: 2px; }
+    .remaining { font-weight: bold; color: #2563eb; }
+    .remaining.overdue { color: #dc2626; }
+    .remaining.finished { color: #16a34a; }
+    li.done .title { text-decoration: line-through; color: #9ca3af; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .status { color: #6b7280; font-size: 0.9em; margin: 8px 0; }
+    .status.error { color: #dc2626; }
   </style>
 </head>
 <body>
   <div class="container">
     <a class="back" href="index.html">← Quay lại trang chủ</a>
 
+    <!-- PHẦN ĐẾM NGƯỢC (giữ nguyên) -->
     <section class="countdown">
       <h2>Đếm ngược</h2>
       <div class="row">
@@ -75,12 +99,35 @@
       <div id="countdownDisplay">Chưa thiết lập</div>
     </section>
 
+    <!-- PHẦN CÔNG VIỆC -->
     <section>
       <h2>Việc cần làm</h2>
-      <div class="row">
-        <input type="text" id="todoInput" placeholder="Nhập công việc mới...">
-        <button id="addBtn">Thêm</button>
+
+      <div class="form-box" id="formBox">
+        <strong id="formTitle">Thêm công việc mới</strong>
+        <div class="row" style="margin-top: 8px;">
+          <div style="flex: 2; min-width: 200px;">
+            <label class="field" for="todoInput">Nội dung</label>
+            <input type="text" id="todoInput" maxlength="200" placeholder="Nhập công việc..." style="width: 100%; box-sizing: border-box;">
+          </div>
+          <div style="flex: 1; min-width: 200px;">
+            <label class="field" for="dueInput">Thời gian hẹn giờ</label>
+            <input type="datetime-local" id="dueInput" style="width: 100%; box-sizing: border-box;">
+          </div>
+        </div>
+        <div class="row" style="margin-bottom: 0;">
+          <button id="submitBtn">Thêm</button>
+          <button id="cancelEditBtn" class="gray" style="display: none;">Hủy sửa</button>
+        </div>
       </div>
+
+      <div class="tabs">
+        <button id="tabActive" class="active">Công việc</button>
+        <button id="tabTrash">Thùng rác</button>
+        <span class="spacer"></span>
+        <button id="emptyTrashBtn" class="danger small" style="display: none;">Dọn thùng rác</button>
+      </div>
+
       <p class="status" id="status">Đang tải...</p>
       <ul id="todoList"></ul>
     </section>
